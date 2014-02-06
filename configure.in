@@ -1,0 +1,39 @@
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
+
+AC_PREREQ([2.63])
+AC_INIT([tslua], [0.0.1], [portl4t.cn@gmail.com])
+AC_CONFIG_SRCDIR([src/ts_lua.c])
+AC_CONFIG_HEADERS([config.h])
+
+AM_INIT_AUTOMAKE(tslua, 0.0.1)
+
+# Checks for programs.
+AC_PROG_CC
+
+# Checks for libraries.
+# FIXME: Replace `main' with a function in `-lpcre':
+AC_CHECK_LIB([pcre], [pcre_compile])
+# FIXME: Replace `main' with a function in `-lssl':
+AC_CHECK_LIB([ssl], [SSL_library_init])
+# FIXME: Replace `main' with a function in `-ltcl':
+AC_CHECK_LIB([tcl], [Tcl_Init])
+# FIXME: Replace `main' with a function in `-llua-5.1':
+AC_CHECK_LIB([lua-5.1], [lua_yield])
+
+# Checks for header files.
+AC_CHECK_HEADERS([arpa/inet.h stdint.h stdlib.h string.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_INLINE
+AC_TYPE_INT32_T
+AC_TYPE_INT64_T
+AC_TYPE_SIZE_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT64_T
+
+# Checks for library functions.
+AC_CHECK_FUNCS([memset])
+
+AC_CONFIG_FILES([Makefile src/Makefile])
+AC_OUTPUT
