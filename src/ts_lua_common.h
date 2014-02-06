@@ -33,7 +33,10 @@
 #include <ts/experimental.h>
 #include <ts/remap.h>
 
-#include "ts_lua_atomic.h"
+#ifdef LUA_HVER
+#define LUA_GLOBALSINDEX    LUA_RIDX_GLOBALS
+#define lua_resume(L, n)    lua_resume(L, NULL, n)
+#endif
 
 #define TS_LUA_FUNCTION_REMAP                   "do_remap"
 #define TS_LUA_FUNCTION_POST_REMAP              "do_post_remap"

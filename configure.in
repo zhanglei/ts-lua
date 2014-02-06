@@ -19,7 +19,29 @@ AC_CHECK_LIB([ssl], [SSL_library_init])
 # FIXME: Replace `main' with a function in `-ltcl':
 AC_CHECK_LIB([tcl], [Tcl_Init])
 # FIXME: Replace `main' with a function in `-llua-5.1':
-AC_CHECK_LIB([lua-5.1], [lua_yield])
+
+luav=""
+AC_CHECK_LIB([lua-5.1], [lua_yield],
+        [
+            luav="lua5.1"
+            LUA_LIBS="-llua-5.1"
+            echo "@ lua-5.1 is found @"
+        ]
+)
+
+if test -z "$luav"; then
+    AC_CHECK_LIB([lua-5.2], [lua_yieldk],
+        [
+            luav="lua5.2"
+            LUA_LIBS="-llua-5.2"
+            echo "@ lua-5.2 is found @"
+        ],
+        [
+            AC_MSG_ERROR([lua is required.])
+        ])
+fi
+
+AC_SUBST(LUA_LIBS)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h stdint.h stdlib.h string.h])
