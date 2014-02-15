@@ -85,7 +85,7 @@ ts_lua_fetch(lua_State *L)
     flags = streaming = 0;
 
     if (n >= 3) {
-        opt = luaL_checklstring(L, 1, &opt_len);
+        opt = luaL_checklstring(L, 3, &opt_len);
 
         i = 0;
 
@@ -104,6 +104,8 @@ ts_lua_fetch(lua_State *L)
                 default:
                     break;
             }
+
+            i++;
         }
     }
 
@@ -171,6 +173,7 @@ ts_lua_fetch(lua_State *L)
     TS_LUA_ADD_INTERCEPT_ITEM(ictx, item, contp, ts_lua_fetch_cleanup, fch);
 
     ts_http_fetcher_set_ctx(fch, fctx);
+    fprintf(stderr, "fch = %p, fctx = %p\n", fch, fctx);
     TSContDataSet(contp, item);
 
     ts_http_fetcher_launch(fch);
@@ -197,7 +200,8 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
     ts_lua_http_intercept_item  *item;
     ts_lua_http_intercept_ctx   *ictx;
 
-    fch = (http_fetcher*)edata;
+    item = (ts_lua_http_intercept_item*)TSContDataGet(contp);
+    fch = (http_fetcher*)(item->data);
     fctx = (ts_lua_fetch_ctx*)ts_http_fetcher_get_ctx(fch);
     ictx = fctx->ictx;
     L = ictx->lua;
@@ -238,17 +242,19 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
 
                 lua_pushlstring(L, data, avail);
 
-                if (fctx->body_complete) {
+                if (fctx->body_complete) {      // eos
                     lua_pushnumber(L, 1);
 
                 } else {
                     lua_pushnil(L);
                 }
 
-                lua_pushnil(L);         // eos
+                lua_pushnil(L);         // err
+
+                ts_http_fetcher_consume_resp_body(fch, avail);
+                TSfree(data);
 
                 TSContCall(ictx->contp, event, (void*)3);
-                TSfree(data);
 
             } else if (fctx->body_complete) {
                 lua_pushlstring(L, "", 0);  // body
@@ -346,10 +352,10 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                 lua_pushnil(L);
 
                 /* final */
-                TSfree(data);
                 ts_http_fetcher_consume_resp_body(fch, avail);
-
+                TSfree(data);
                 fctx->suspended = 0;
+
                 TSContCall(ictx->contp, event, (void*)3);
 
             } else {
@@ -409,7 +415,6 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                 /* final */
                 TSfree(data);
 
-                item = (ts_lua_http_intercept_item*)TSContDataGet(contp);
                 ts_lua_fetch_cleanup(item);
                 TSContCall(ictx->contp, event, (void*)1);
             }
@@ -454,7 +459,6 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                 lua_pushnumber(L, 1);
                 lua_settable(L, -3);
 
-                item = (ts_lua_http_intercept_item*)TSContDataGet(contp);
                 ts_lua_fetch_cleanup(item);
                 TSContCall(ictx->contp, event, (void*)1);
             }
@@ -499,6 +503,7 @@ ts_lua_fetch_read(lua_State *L)
     ts_lua_fetch_ctx            *fctx;
 
     n = lua_gettop(L);
+
     if (n < 1) {
         return luaL_error(L, "ts.fetch_read less parameter.\n");
     }
@@ -509,7 +514,7 @@ ts_lua_fetch_read(lua_State *L)
 
     /* handler */
     lua_pushlstring(L, "handler", sizeof("handler")-1);
-    lua_gettable(L, 2);
+    lua_gettable(L, 1);
 
     if (lua_isuserdata(L, -1)) {
         fch = lua_touserdata(L, -1);

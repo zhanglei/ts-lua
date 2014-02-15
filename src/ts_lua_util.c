@@ -140,8 +140,6 @@ ts_lua_add_module(ts_lua_instance_conf *conf, ts_lua_main_ctx *arr, int n, int a
             return -1;
         }
 
-        ts_lua_set_instance_conf(L, conf);
-
         /* call "__init__", to parse parameters */
         lua_getglobal(L, "__init__");
 
