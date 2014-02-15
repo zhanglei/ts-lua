@@ -30,6 +30,10 @@ static int ts_lua_flush(lua_State *L);
 static int ts_lua_sleep_cleanup(struct ict_item *item);
 static int ts_lua_sleep_handler(TSCont contp, TSEvent event, void *edata);
 
+int ts_lua_flush_launch(ts_lua_http_intercept_ctx *ictx);
+static int ts_lua_flush_cleanup(struct ict_item *item);
+static int ts_lua_flush_handler(TSCont contp, TSEvent event, void *edata);
+
 void
 ts_lua_inject_misc_api(lua_State *L)
 {
@@ -129,14 +133,16 @@ ts_lua_say(lua_State *L)
 static int
 ts_lua_flush(lua_State *L)
 {
+    int64_t     avail;
     ts_lua_http_intercept_ctx *ictx;
 
     ictx = ts_lua_get_http_intercept_ctx(L);
+    avail = TSIOBufferReaderAvail(ictx->output.reader);
 
-    ictx->to_flush = TSVIONDoneGet(ictx->output.vio) + TSIOBufferReaderAvail(ictx->output.reader);
-
-    if (TSIOBufferReaderAvail(ictx->output.reader))
-        TSVIOReenable(ictx->output.vio);
+    if (avail > 0) {
+        ictx->to_flush = TSVIONDoneGet(ictx->output.vio) + TSIOBufferReaderAvail(ictx->output.reader);
+        return lua_yield(L, 0);
+    }
 
     return 0;
 }
@@ -164,6 +170,49 @@ ts_lua_sleep_cleanup(struct ict_item *item)
 
     TSContDestroy(item->contp);
     item->deleted = 1;
+
+    return 0;
+}
+
+int
+ts_lua_flush_launch(ts_lua_http_intercept_ctx *ictx)
+{
+    TSAction        action;
+    TSCont          contp;
+    ts_lua_http_intercept_item  *node;
+
+    contp = TSContCreate(ts_lua_flush_handler, TSContMutexGet(ictx->contp));
+    action = TSContSchedule(contp, 0, TS_THREAD_POOL_DEFAULT);
+
+    node = (ts_lua_http_intercept_item*)TSmalloc(sizeof(ts_lua_http_intercept_item));
+    TS_LUA_ADD_INTERCEPT_ITEM(ictx, node, contp, ts_lua_flush_cleanup, action);
+    TSContDataSet(contp, node);
+
+    return 0;
+}
+
+static int
+ts_lua_flush_cleanup(struct ict_item *item)
+{
+    if (item->data) {
+        TSActionCancel((TSAction)item->data);
+        item->data = NULL;
+    }
+
+    TSContDestroy(item->contp);
+    item->deleted = 1;
+
+    return 0;
+}
+
+static int
+ts_lua_flush_handler(TSCont contp, TSEvent event, void *edata)
+{
+    ts_lua_http_intercept_item *item = TSContDataGet(contp);
+
+    ts_lua_flush_cleanup(item);
+
+    TSContCall(item->ictx->contp, event, 0);
 
     return 0;
 }

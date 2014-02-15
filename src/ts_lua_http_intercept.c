@@ -38,6 +38,8 @@ static int ts_lua_http_intercept_run_coroutine(ts_lua_http_intercept_ctx *ictx, 
 static int ts_lua_http_intercept_process_read(TSEvent event, ts_lua_http_intercept_ctx *ictx);
 static int ts_lua_http_intercept_process_write(TSEvent event, ts_lua_http_intercept_ctx *ictx);
 
+extern int ts_lua_flush_launch(ts_lua_http_intercept_ctx *ictx);
+
 
 void
 ts_lua_inject_http_intercept_api(lua_State *L)
@@ -303,8 +305,16 @@ ts_lua_http_intercept_process_write(TSEvent event, ts_lua_http_intercept_ctx *ic
             } else {
                 done = TSVIONDoneGet(ictx->output.vio);
 
-                if (ictx->to_flush > done)
-                    TSVIOReenable(ictx->output.vio);
+                if (ictx->to_flush > 0) {
+
+                    if (ictx->to_flush > done) {
+                        TSVIOReenable(ictx->output.vio);
+
+                    } else {
+                        ictx->to_flush = 0;
+                        ts_lua_flush_launch(ictx);
+                    }
+                }
             }
 
             break;
