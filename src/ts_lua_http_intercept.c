@@ -201,7 +201,7 @@ ts_lua_http_intercept_handler(TSCont contp, TSEvent event, void *edata)
         ret = ts_lua_http_intercept_process_write(event, ictx);
 
     } else {
-        mtxp = ictx->hctx->mctx->mutexp;
+        mtxp = ictx->mctx->mutexp;
         n = (int64_t)edata & 0xFFFF;
         TSMutexLock(mtxp);
         ret = ts_lua_http_intercept_run_coroutine(ictx, n);
@@ -212,7 +212,7 @@ ts_lua_http_intercept_handler(TSCont contp, TSEvent event, void *edata)
         TSContDestroy(contp);
 
         if (!mtxp) {
-            mtxp = ictx->hctx->mctx->mutexp;
+            mtxp = ictx->mctx->mutexp;
             TSMutexLock(mtxp);
         }
 
