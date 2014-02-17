@@ -34,9 +34,11 @@ function send_data()
 
     local res = ts.fetch('http://a.tbcdn.cn/echo/naizhen', 
                     {
-                        ['Host'] = 'a.tbcdn.cn',
-                        ['Accept'] = '*/*',
-                        ['User-Agent'] = 'libfetcher'
+                        ['header'] = {
+                                        ['Host'] = 'a.tbcdn.cn',
+                                        ['Accept'] = '*/*',
+                                        ['User-Agent'] = 'libfetcher'
+                                     }
                     }, 's')
 
     print(res.status)
