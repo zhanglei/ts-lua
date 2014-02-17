@@ -141,6 +141,8 @@ ts_lua_flush(lua_State *L)
 
     if (avail > 0) {
         ictx->to_flush = TSVIONDoneGet(ictx->output.vio) + TSIOBufferReaderAvail(ictx->output.reader);
+        TSVIOReenable(ictx->output.vio);
+
         return lua_yield(L, 0);
     }
 
