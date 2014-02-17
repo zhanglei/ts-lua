@@ -29,6 +29,9 @@ function send_data()
         'Accept-Ranges: bytes\r\n\r\n' ..
         nt
 
+    ts.say(resp)
+    ts.flush()
+
     local res = ts.fetch('http://a.tbcdn.cn/echo/naizhen', 
                     {
                         ['Host'] = 'a.tbcdn.cn',
@@ -39,29 +42,31 @@ function send_data()
     print(res.status)
     print(res.handler)
 
---    for key, value in pairs(res.header) do
---        print(key..': '..value)
---    end
+    for key, value in pairs(res.header) do
+        print(key..': '..value)
+    end
 
     repeat
         body, eos, err = ts.fetch_read(res)
-        if eos or err
-        then
-            print(body)
-            print(eos)
-            print(err)
-            print('what')
+
+        if err then
+            print('error!!!')
             break
+
         else
-            print(body)
-            print(eos)
-            print(err)
+            if body then
+                ts.say(body)
+                ts.flush()
+            end
+
+            if eos then
+                break
+            end
         end
+
     until false
 
-    ts.say(resp)
     ts.say('~~finish~~\n')
-    print('@@@@')
 end
 
 
