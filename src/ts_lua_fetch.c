@@ -84,6 +84,7 @@ ts_lua_fetch(lua_State *L)
 
     flags = streaming = 0;
 
+    /* option */
     if (n >= 3) {
         opt = luaL_checklstring(L, 3, &opt_len);
 
@@ -112,7 +113,6 @@ ts_lua_fetch(lua_State *L)
     contp = TSContCreate(ts_lua_fetch_handler, TSContMutexGet(ictx->contp));
     client_addr = *TSHttpTxnClientAddrGet(ictx->hctx->txnp);
 
-    /* option */
     fch = ts_http_fetcher_create(contp, &client_addr, flags);
 
     /* method */
@@ -173,7 +173,6 @@ ts_lua_fetch(lua_State *L)
     TS_LUA_ADD_INTERCEPT_ITEM(ictx, item, contp, ts_lua_fetch_cleanup, fch);
 
     ts_http_fetcher_set_ctx(fch, fctx);
-    fprintf(stderr, "fch = %p, fctx = %p\n", fch, fctx);
     TSContDataSet(contp, item);
 
     ts_http_fetcher_launch(fch);
@@ -430,7 +429,7 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
 
                 if (fctx->header_complete) {     // after ts.fetch(...)
 
-                    if (fctx->suspended) {       // block on ts.fetch_read
+                    if (fctx->suspended) {      // block on ts.fetch_read
                         lua_pushnil(L);         // body
                         lua_pushnil(L);         // eos
                         lua_pushnumber(L, 1);   // err
