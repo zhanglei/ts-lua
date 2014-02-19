@@ -126,7 +126,11 @@ ts_lua_say(lua_State *L)
 
     data = luaL_checklstring(L, 1, &len);
 
-    TSIOBufferWrite(ictx->output.buffer, data, len);
+    if (len > 0) {
+        TSIOBufferWrite(ictx->output.buffer, data, len);
+        TSVIOReenable(ictx->output.vio);
+    }
+
     return 0;
 }
 
@@ -165,6 +169,9 @@ ts_lua_sleep_handler(TSCont contp, TSEvent event, void *edata)
 static int
 ts_lua_sleep_cleanup(struct ict_item *item)
 {
+    if (item->deleted)
+        return 0;
+
     if (item->data) {
         TSActionCancel((TSAction)item->data);
         item->data = NULL;
@@ -196,6 +203,9 @@ ts_lua_flush_launch(ts_lua_http_intercept_ctx *ictx)
 static int
 ts_lua_flush_cleanup(struct ict_item *item)
 {
+    if (item->deleted)
+        return 0;
+
     if (item->data) {
         TSActionCancel((TSAction)item->data);
         item->data = NULL;

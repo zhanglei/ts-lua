@@ -21,6 +21,9 @@
 #include <ts_fetcher/ts_fetcher.h>
 #include "ts_lua_util.h"
 
+#define TS_LUA_FETCH_OUTPUT_HIGH_WATER     (256 * 1024)
+#define TS_LUA_FETCH_OUTPUT_LOW_WATER      (128 * 1024)
+
 typedef struct {
     TSIOBuffer          buffer;
     TSIOBufferReader    reader;
@@ -124,7 +127,7 @@ ts_lua_fetch(lua_State *L)
         ts_http_fetcher_init(fch, method, method_len, url, len);
 
     } else {
-        ts_http_fetcher_init_common(fch, TS_FETCH_METHOD_GET, url, len);
+        ts_http_fetcher_init_common(fch, TS_FETCH_HTTP_METHOD_GET, url, len);
     }
 
     lua_pop(L, 1);
@@ -185,7 +188,7 @@ ts_lua_fetch(lua_State *L)
 static int
 ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
 {
-    int64_t             avail, all;
+    int64_t             avail, all, wavail;
     int64_t             blk_len, already;
     char                *data;
     const char          *start;
@@ -223,42 +226,41 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                 break;
             }
 
-            avail = TSIOBufferReaderAvail(fch->body_reader);
+            wavail = TSIOBufferReaderAvail(fctx->reader);
 
-            if (avail > 0) {
+            if (wavail >= TS_LUA_FETCH_OUTPUT_LOW_WATER || fctx->body_complete) {
                 /* body */
-                data = TSmalloc(avail);
+                data = TSmalloc(wavail);
 
                 already = 0;
-                blk = TSIOBufferReaderStart(fch->body_reader);
+                blk = TSIOBufferReaderStart(fctx->reader);
 
                 while (blk) {
-                    start = TSIOBufferBlockReadStart(blk, fch->body_reader, &blk_len);
+                    start = TSIOBufferBlockReadStart(blk, fctx->reader, &blk_len);
                     memcpy(data + already, start, blk_len);
                     already += blk_len;
                     blk = TSIOBufferBlockNext(blk);
                 }
 
-                lua_pushlstring(L, data, avail);
+                lua_pushlstring(L, data, wavail);
 
                 if (fctx->body_complete) {      // eos
                     lua_pushnumber(L, 1);
 
                 } else {
                     lua_pushnil(L);
+
+                    avail = TSIOBufferReaderAvail(fch->body_reader);
+                    TSIOBufferCopy(fctx->buffer, fch->body_reader, avail, 0);
+                    ts_http_fetcher_consume_resp_body(fch, avail);
                 }
 
                 lua_pushnil(L);         // err
 
-                ts_http_fetcher_consume_resp_body(fch, avail);
+                /* final */
+                TSIOBufferReaderConsume(fctx->reader, wavail);
                 TSfree(data);
-
-                TSContCall(ictx->contp, event, (void*)3);
-
-            } else if (fctx->body_complete) {
-                lua_pushlstring(L, "", 0);  // body
-                lua_pushnumber(L, 1);       // eos
-                lua_pushnil(L);             // err
+                fctx->suspended = 0;
 
                 TSContCall(ictx->contp, event, (void*)3);
 
@@ -319,26 +321,33 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                 fctx->body_complete = 1;
 
             avail = TSIOBufferReaderAvail(fch->body_reader);
+            wavail = TSIOBufferReaderAvail(fctx->reader);
 
             if (fctx->streaming) {
+
+                if (wavail < TS_LUA_FETCH_OUTPUT_HIGH_WATER || event == TS_EVENT_FETCH_BODY_COMPLETE) {
+                    TSIOBufferCopy(fctx->buffer, fch->body_reader, avail, 0);
+                    ts_http_fetcher_consume_resp_body(fch, avail);
+                }
 
                 if (!fctx->suspended)           // wait for read
                     break;
 
                 /* body */
-                data = TSmalloc(avail);
+                all = TSIOBufferReaderAvail(fctx->reader);
+                data = TSmalloc(all);
 
                 already = 0;
-                blk = TSIOBufferReaderStart(fch->body_reader);
+                blk = TSIOBufferReaderStart(fctx->reader);
 
                 while (blk) {
-                    start = TSIOBufferBlockReadStart(blk, fch->body_reader, &blk_len);
+                    start = TSIOBufferBlockReadStart(blk, fctx->reader, &blk_len);
                     memcpy(data + already, start, blk_len);
                     already += blk_len;
                     blk = TSIOBufferBlockNext(blk);
                 }
 
-                lua_pushlstring(L, data, avail);
+                lua_pushlstring(L, data, all);
 
                 /* eos */
                 if (event == TS_EVENT_FETCH_BODY_COMPLETE) {
@@ -348,10 +357,11 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                     lua_pushnil(L);
                 }
 
+                /* err */
                 lua_pushnil(L);
 
                 /* final */
-                ts_http_fetcher_consume_resp_body(fch, avail);
+                TSIOBufferReaderConsume(fctx->reader, all);
                 TSfree(data);
                 fctx->suspended = 0;
 
@@ -412,6 +422,7 @@ ts_lua_fetch_handler(TSCont contp, TSEvent event, void *edata)
                 lua_settable(L, -3);
 
                 /* final */
+                TSIOBufferReaderConsume(fctx->reader, all);
                 TSfree(data);
 
                 ts_lua_fetch_cleanup(item);
@@ -473,6 +484,9 @@ ts_lua_fetch_cleanup(struct ict_item *item)
 {
     http_fetcher        *fch;
     ts_lua_fetch_ctx    *fctx;
+
+    if (item->deleted)
+        return 0;
 
     fch = (http_fetcher*)item->data;
     fctx = (ts_lua_fetch_ctx*)ts_http_fetcher_get_ctx(fch);

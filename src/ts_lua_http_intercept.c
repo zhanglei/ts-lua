@@ -293,28 +293,31 @@ ts_lua_http_intercept_process_read(TSEvent event, ts_lua_http_intercept_ctx *ict
 static int
 ts_lua_http_intercept_process_write(TSEvent event, ts_lua_http_intercept_ctx *ictx)
 {
-    int64_t     done;
+    int64_t     done, avail;
 
     switch (event) {
 
         case TS_EVENT_VCONN_WRITE_READY:
 
+            avail = TSIOBufferReaderAvail(ictx->output.reader);
+
             if (ictx->all_ready) {
                 TSVIOReenable(ictx->output.vio);
 
-            } else {
+            } else if (ictx->to_flush > 0) {       // ts.flush()
+
                 done = TSVIONDoneGet(ictx->output.vio);
 
-                if (ictx->to_flush > 0) {
+                if (ictx->to_flush > done) {
+                    TSVIOReenable(ictx->output.vio);
 
-                    if (ictx->to_flush > done) {
-                        TSVIOReenable(ictx->output.vio);
-
-                    } else {
-                        ictx->to_flush = 0;
-                        ts_lua_flush_launch(ictx);
-                    }
+                } else {                            // we had flush all the data we want
+                    ictx->to_flush = 0;
+                    ts_lua_flush_launch(ictx);      // wake up
                 }
+
+            } else if (avail > 0) {
+                TSVIOReenable(ictx->output.vio);
             }
 
             break;

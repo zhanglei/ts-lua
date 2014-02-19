@@ -451,9 +451,9 @@ ts_lua_destroy_http_intercept_ctx(ts_lua_http_intercept_ctx *ictx)
     node = ictx->ict_chain;
 
     while (node) {
-        if (!node->deleted) {
+
+        if (node->cleanup)
             node->cleanup(node);
-        }
 
         snode = node;
         node = node->next;
