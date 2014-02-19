@@ -26,7 +26,7 @@ function send_data()
                                         ['Accept'] = '*/*',
                                         ['User-Agent'] = 'libfetcher'
                                      }
-                    })
+                    }, 's')
 
 
     local resp = string.format('HTTP/1.1 %d OK\r\n', res.status)
@@ -35,18 +35,35 @@ function send_data()
         if key == 'Content-Length' then
             resp = resp .. 'Content-Length: 52428800\r\n'
         else
-            resp = resp .. key .. ': '..value .. '\r\n'
+            resp = resp .. key..': '..value .. '\r\n'
         end
     end
 
     resp = resp .. '\r\n'
 
     ts.say(resp)
-    ts.say(res.body)
 
-    for i=2, 5 do
+    repeat
+        body, eos, err = ts.fetch_read(res)
+
+        if err then
+            print('error!!!')
+            break
+
+        else
+            if body then
+                ts.say(body)
+            end
+
+            if eos then
+                break
+            end
+        end
+
+    until false
+
+    for i = 2, 5 do
         url = string.format('http://a.tbcdn.cn/video/%d', i)
-
         local is = ts.fetch(url, 
                         {
                             ['header'] = {
@@ -54,9 +71,25 @@ function send_data()
                                             ['Accept'] = '*/*',
                                             ['User-Agent'] = 'libfetcher'
                                          }
-                        })
+                        }, 's')
 
-        ts.say(is.body)
+        repeat
+            body, eos, err = ts.fetch_read(is)
+
+            if err then
+                print('error')
+                break
+            else
+                if body then
+                    ts.say(body)
+--                    ts.flush()
+                end
+
+                if eos then
+                    break
+                end
+            end
+        until false
     end
 end
 
