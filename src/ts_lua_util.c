@@ -424,7 +424,7 @@ ts_lua_create_http_intercept_ctx(ts_lua_http_ctx *http_ctx)
 
     ictx->lua = lua_newthread(L);
 
-    ictx->ref = luaL_ref(http_ctx->mctx->lua, LUA_REGISTRYINDEX);
+    ictx->ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
     ictx->mctx = http_ctx->mctx;
     ictx->hctx = http_ctx;
